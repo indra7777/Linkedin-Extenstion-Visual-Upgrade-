@@ -1,0 +1,31 @@
+{
+    "manifest_version": 3,
+    "name": "Unnanu LinkedIn Extension",
+    "description": "LinkedIn profile extractor with sidebar interface",
+    "version": "1.0",
+    "permissions": [
+        "activeTab"
+    ],
+    "icons": {
+        "16": "images/icon-2.png",
+        "32": "images/icon-2.png",
+        "48": "images/icon-2.png",
+        "128": "images/icon-2.png"
+    },
+    "action": {
+        "default_title": "Open Unnanu Sidebar",
+        "default_icon": {
+            "16": "images/icon-2.png",
+            "32": "images/icon-2.png",
+            "48": "images/icon-2.png",
+            "128": "images/icon-2.png"
+        }
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [{
+        "matches": ["*://*/*"],
+        "js": ["content.js"]
+    }]
+}

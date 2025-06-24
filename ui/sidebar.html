@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unnanu LinkedIn Profile Viewer</title>
+    <link rel="stylesheet" href="sidebar.css">
+</head>
+<body>
+    <div id="unnanu-sidebar" class="sidebar-container">
+        <div class="sidebar-header">
+            <div class="logo-container">
+                <img src="../images/icon-2.png" alt="Unnanu Logo" class="logo">
+                <span class="logo-text">Unnanu</span>
+            </div>
+            <button id="closeSidebar" class="close-btn">&times;</button>
+        </div>
+        
+        <div class="sidebar-content">
+            <!-- Profile Display Container -->
+            <div id="profile-container" class="profile-container">
+                <div class="loading-message">
+                    <p>Navigate to a LinkedIn profile to view details</p>
+                </div>
+            </div>
+
+            <!-- Extract Button -->
+            <div class="action-section">
+                <button id="extractBtn" class="extract-btn" disabled>
+                    <span id="extractText">Extract Profile</span>
+                    <div id="extractLoader" class="loader" style="display: none;"></div>
+                </button>
+                
+                <div id="statusMessage" class="status-message" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="sidebar.js"></script>
+</body>
+</html>
