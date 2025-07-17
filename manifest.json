@@ -21,7 +21,6 @@
     },
     "action": {
         "default_title": "Unnanu LinkedIn Extractor",
-        "default_popup": "index.html",
         "default_icon": {
             "16": "images/icon-2.png",
             "32": "images/icon-2.png",
@@ -35,5 +34,9 @@
     "content_scripts": [{
         "matches": ["*://*/*"],
         "js": ["content.js"]
+    }],
+    "web_accessible_resources": [{
+        "resources": ["ui/*", "libs/*", "images/*"],
+        "matches": ["*://*/*"]
     }]
 }

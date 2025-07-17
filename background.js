@@ -5,33 +5,14 @@ console.log('Unnanu background script loaded');
 chrome.action.onClicked.addListener((tab) => {
     console.log('Extension icon clicked on tab:', tab.url);
     
-    // Check if user is on LinkedIn profile page
-    if (tab.url && tab.url.includes('linkedin.com/in/')) {
-        // On LinkedIn profile - toggle sidebar
-        chrome.tabs.sendMessage(tab.id, { action: 'toggleSidebar' }, (response) => {
-            if (chrome.runtime.lastError) {
-                console.log('Content script not ready yet');
-            } else {
-                console.log('Toggle message sent successfully');
-            }
-        });
-    } else {
-        // Not on LinkedIn profile - show popup for login/main actions
-        // The popup will be shown automatically due to default_popup in manifest
-        // We can't manually trigger popup, but we can send message to content script
-        chrome.tabs.sendMessage(tab.id, { action: 'showLoginPrompt' }, (response) => {
-            if (chrome.runtime.lastError) {
-                console.log('Content script not ready yet, opening popup window');
-                // Fallback: create a new window with the popup
-                chrome.windows.create({
-                    url: chrome.runtime.getURL('index.html'),
-                    type: 'popup',
-                    width: 400,
-                    height: 600
-                });
-            }
-        });
-    }
+    // Always toggle sidebar - authentication will be handled within the sidebar
+    chrome.tabs.sendMessage(tab.id, { action: 'toggleSidebar' }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.log('Content script not ready yet');
+        } else {
+            console.log('Toggle message sent successfully');
+        }
+    });
 });
 
 // Listen for messages from content scripts and popup
