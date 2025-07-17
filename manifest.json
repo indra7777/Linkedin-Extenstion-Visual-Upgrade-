@@ -4,7 +4,14 @@
     "description": "LinkedIn profile extractor with sidebar interface",
     "version": "1.0",
     "permissions": [
-        "activeTab"
+        "storage",
+        "tabs",
+        "activeTab",
+        "scripting"
+    ],
+    "host_permissions": [
+        "https://*.unnanu.com/*",
+        "https://www.linkedin.com/*"
     ],
     "icons": {
         "16": "images/icon-2.png",
@@ -13,7 +20,8 @@
         "128": "images/icon-2.png"
     },
     "action": {
-        "default_title": "Open Unnanu Sidebar",
+        "default_title": "Unnanu LinkedIn Extractor",
+        "default_popup": "index.html",
         "default_icon": {
             "16": "images/icon-2.png",
             "32": "images/icon-2.png",

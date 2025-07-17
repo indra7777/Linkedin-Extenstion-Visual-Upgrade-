@@ -1,5 +1,3 @@
-alert("Extension loaded!");
-
 console.log("Unnanu LinkedIn Extension loaded!");
 
 // Create floating Unnanu icon
@@ -522,29 +520,60 @@ function openSidebar() {
     sidebar.querySelector('#close-sidebar')?.addEventListener('click', closeSidebar);
     sidebar.querySelector('#close-btn').addEventListener('click', closeSidebar);
     
-    // Enhanced extract button functionality
+    // Enhanced extract button functionality with authentication
     const extractBtn = sidebar.querySelector('#extract-btn');
     if (extractBtn) {
         extractBtn.addEventListener('click', function() {
             console.log('Extracting complete profile data:', profileData);
             
-            let experienceText = profileData.experience && profileData.experience.length > 0 
-                ? profileData.experience.map((exp, index) => `${index + 1}. ${exp.title} at ${exp.company} (${exp.duration})`).join('\n') 
-                : 'No work experience found';
-                
-            let educationText = profileData.education && profileData.education.length > 0 
-                ? profileData.education.map((edu, index) => `${index + 1}. ${edu.degree} at ${edu.school} (${edu.years})`).join('\n') 
-                : 'No education data found';
-            
-            alert(`COMPLETE PROFILE EXTRACTED!\n\n` +
-                  `👤 Name: ${profileData.fullName || 'Not found'}\n` +
-                  `💼 Title: ${profileData.headline || 'Not found'}\n` +
-                  `📍 Location: ${profileData.location || 'Not found'}\n` +
-                  `🔗 Connections: ${profileData.connections || 'Not found'}\n` +
-                  `👥 Followers: ${profileData.followers || 'Not found'}\n\n` +
-                  `WORK EXPERIENCE:\n${experienceText}\n\n` +
-                  `EDUCATION:\n${educationText}\n\n` +
-                  `🔗 Profile URL: ${profileData.url}`);
+            // Check authentication before extracting
+            getUnnanuData(function(userData) {
+                if (userData && userData.token) {
+                    // Show loading state
+                    extractBtn.style.backgroundColor = '#666';
+                    extractBtn.innerHTML = '⏳ Extracting...';
+                    extractBtn.disabled = true;
+                    
+                    // Send data to Unnanu API
+                    sendProfileDataToAPI(profileData, userData)
+                        .then(response => {
+                            console.log('Profile sent successfully:', response);
+                            
+                            // Update button to success state
+                            extractBtn.style.backgroundColor = '#28a745';
+                            extractBtn.innerHTML = '✅ Profile Extracted!';
+                            
+                            // Add profile to sent list
+                            addProfileToSentList(profileData.url);
+                            
+                            // Reset button after 3 seconds
+                            setTimeout(() => {
+                                extractBtn.style.backgroundColor = '#0073b1';
+                                extractBtn.innerHTML = '📋 Extract Complete Profile Data';
+                                extractBtn.disabled = false;
+                            }, 3000);
+                        })
+                        .catch(error => {
+                            console.error('Failed to send profile:', error);
+                            
+                            // Update button to error state
+                            extractBtn.style.backgroundColor = '#dc3545';
+                            extractBtn.innerHTML = '❌ Extraction Failed';
+                            
+                            // Show error alert
+                            alert('Failed to extract profile. Please try again or check your connection.');
+                            
+                            // Reset button after 3 seconds
+                            setTimeout(() => {
+                                extractBtn.style.backgroundColor = '#0073b1';
+                                extractBtn.innerHTML = '📋 Extract Complete Profile Data';
+                                extractBtn.disabled = false;
+                            }, 3000);
+                        });
+                } else {
+                    alert('Please login to extract profiles. Click the extension icon to login.');
+                }
+            });
         });
     }
     
@@ -566,6 +595,76 @@ function closeSidebar() {
 // Add the icon to the page
 document.body.appendChild(icon);
 console.log("Unnanu floating icon added!");
+
+// Authentication and API functions
+function getUnnanuData(callback) {
+    chrome.storage.local.get(['unnanu_token', 'unnanu_id', 'unnanu_expiry', 'unnanu_type'], function(result) {
+        const currentTime = new Date().getTime();
+        if (result.unnanu_expiry && currentTime > result.unnanu_expiry) {
+            chrome.storage.local.remove(['unnanu_token', 'unnanu_id', 'unnanu_expiry', 'unnanu_type']);
+            callback(null);
+        } else if (result.unnanu_token && result.unnanu_id) {
+            callback({
+                token: result.unnanu_token,
+                id: result.unnanu_id,
+                type: result.unnanu_type
+            });
+        } else {
+            callback(null);
+        }
+    });
+}
+
+function addProfileToSentList(profileId) {
+    chrome.storage.local.get(['sentProfileIds'], function(result) {
+        const sentProfileIds = result.sentProfileIds || [];
+        if (!sentProfileIds.includes(profileId)) {
+            sentProfileIds.push(profileId);
+            chrome.storage.local.set({ 'sentProfileIds': sentProfileIds });
+        }
+    });
+}
+
+async function sendProfileDataToAPI(profileData, userData) {
+    const apiEndpoint = 'https://plugin.unnanu.com/api/v1/profiles/extract';
+    
+    // Prepare data in the format expected by Unnanu API
+    const dataToSend = {
+        firstName: profileData.fullName ? profileData.fullName.split(' ')[0] : '',
+        lastName: profileData.fullName ? profileData.fullName.split(' ').slice(1).join(' ') : '',
+        headline: profileData.headline || '',
+        location: profileData.location || '',
+        profileImage: profileData.profileImage || '',
+        connections: profileData.connections || '',
+        followers: profileData.followers || '',
+        experience: profileData.experience || [],
+        education: profileData.education || [],
+        url: profileData.url,
+        extractedAt: profileData.timestamp,
+        userId: userData.id
+    };
+    
+    try {
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${userData.token}`
+            },
+            body: JSON.stringify(dataToSend)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error('API request failed:', error);
+        throw error;
+    }
+}
 
 // Listen for messages from background script (extension icon clicks)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

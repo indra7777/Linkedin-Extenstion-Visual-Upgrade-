@@ -27,7 +27,17 @@ function initializeEventListeners() {
     if (extractBtn) {
         extractBtn.addEventListener('click', function() {
             console.log('Extract button clicked');
-            window.parent.postMessage({ action: 'extractProfile' }, '*');
+            // Check authentication before extracting
+            getUnnanuData(function(userData) {
+                if (userData && userData.token) {
+                    window.parent.postMessage({ 
+                        action: 'extractProfile', 
+                        userData: userData 
+                    }, '*');
+                } else {
+                    showErrorState('Please login to extract profiles');
+                }
+            });
         });
     }
 }
@@ -143,6 +153,35 @@ function showStatusMessage(message, type) {
 function hideStatusMessage() {
     const statusElement = document.getElementById('statusMessage');
     statusElement.style.display = 'none';
+}
+
+// Authentication functions
+function getUnnanuData(callback) {
+    chrome.storage.local.get(['unnanu_token', 'unnanu_id', 'unnanu_expiry', 'unnanu_type'], function(result) {
+        const currentTime = new Date().getTime();
+        if (result.unnanu_expiry && currentTime > result.unnanu_expiry) {
+            chrome.storage.local.remove(['unnanu_token', 'unnanu_id', 'unnanu_expiry', 'unnanu_type']);
+            callback(null);
+        } else if (result.unnanu_token && result.unnanu_id) {
+            callback({
+                token: result.unnanu_token,
+                id: result.unnanu_id,
+                type: result.unnanu_type
+            });
+        } else {
+            callback(null);
+        }
+    });
+}
+
+function addProfileToSentList(profileId) {
+    chrome.storage.local.get(['sentProfileIds'], function(result) {
+        const sentProfileIds = result.sentProfileIds || [];
+        if (!sentProfileIds.includes(profileId)) {
+            sentProfileIds.push(profileId);
+            chrome.storage.local.set({ 'sentProfileIds': sentProfileIds });
+        }
+    });
 }
 
 console.log('Sidebar script loaded');

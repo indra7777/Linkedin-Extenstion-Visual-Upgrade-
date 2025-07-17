@@ -1,0 +1,249 @@
+body {
+  width: 300px;
+  height: 300px;
+  font-family: 'Frank Ruhl Libre', serif;
+  line-height: 1.18;
+  font-weight: 400;
+  color: #222;
+  text-align: center;
+  background-color: ghostwhite;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+
+.input-style {
+  border: solid 0.6px rgba(0, 0, 0, .2);
+  background-color: #fff;
+  padding: 16px;
+  letter-spacing: .4px;
+  font-weight: 500;
+  border-radius: 0;
+  font-size: 16px;
+  height: 50px;
+  margin: 10px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.login-button, .action-button {
+  height: 50px;
+  color: #000;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.63;
+  border-radius: 1px;
+  letter-spacing: .4px;
+  border: solid 0.6px rgba(0, 0, 0, .2);
+  box-shadow: 0 1px 2px #0003;
+  cursor: pointer;
+  margin: 10px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.login-button {
+  background-color: #ffba00;
+}
+
+.action-button {
+  background-color: #266adc;
+  color: white;
+}
+
+.login-container {
+  display: block; /* Initially visible */
+}
+
+.main-container {
+  display: none; /* Initially hidden */
+  padding-bottom: 15px;
+}
+
+.content-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.centered-image {
+  max-width: 100%; 
+  margin-bottom: 20px; 
+}
+
+.radio-options {
+  display: flex;
+  padding: 10px 0;
+  margin: 10px 0;
+  border-top: 1px solid rgba(0, 0, 0, .1);
+  border-bottom: 1px solid rgba(0, 0, 0, .1);
+  justify-content: center;
+}
+
+.radio-options input[type="radio"] {
+  margin-right: 5px;
+}
+
+.radio-options label {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 15px; /* Adjust spacing between radio options as needed */
+}
+
+.radio-options input[type="radio"] {
+  margin-right: 5px; /* Space between the radio button and its text */
+}
+
+#error-message {
+  color: transparent;  /* Initially transparent */
+  font-size: 14px;
+  text-align: center;
+  margin-top: 10px;
+  max-width: 90%;
+  overflow-wrap: break-word;
+  padding: 0 5px;
+  transition: color 0.3s ease-in-out;  /* Transition effect for changing color */
+}
+
+.error-visible {
+  color: red !important;  /* When class is applied, the text turns red */
+}
+
+
+.radio-options label {
+  font-family: 'Lora', serif;
+  font-size: initial;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loader {
+  border: 4px solid rgb(255 255 255 / 27%);
+  border-radius: 50%;
+  border-top: 4px solid #fff;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  display: none;
+  margin-top: 5px;
+}
+
+.textHolder{
+  display: flex;
+  flex-direction: column;
+}
+
+#helperCenter{
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: stretch;
+  justify-content: space-between;
+}
+
+.signup-text {
+  display: block;
+  margin-bottom: 10px; /* or whatever space you want above the login button */
+  text-align: center; /* center the text if you wish */
+}
+
+.signup-text a {
+  color: #007BFF; /* You can choose a color that fits your design */
+  text-decoration: none; /* Remove the default underline */
+}
+
+.signup-text a:hover {
+  text-decoration: underline; /* Add underline on hover for clarity */
+}
+
+
+.action-button:disabled {
+  cursor: not-allowed;
+}
+
+#logoutButton {
+  background-color: #d15050; /* red color for logout */
+  width: 150px; /* adjust as needed */
+  height: 40px; /* adjust as needed */
+  font-size: 14px; /* adjust as needed */
+}
+
+
+
+.info-container {
+  position: relative;
+  display: flex;
+  justify-content: right;
+}
+
+.info-icon {
+  border: 2px solid #d3d3d3;
+  color: #d3d3d3;
+  border-radius: 50%; /* makes it circular */
+  width: 15px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.info-content {
+  display: none; /* initially hidden */
+  position: absolute;
+  background-color: #f9f9f9;
+  color: gray;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 3px;
+  width: 220px; /* adjust as needed */
+  left: 50%;
+  transform: translateX(-95%); /* centering the tooltip */
+  z-index: 1000;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.info-icon:hover + .info-content {
+  display: block; /* show on hover */
+}
+
+.textHolder {
+  display: none;
+}
+
+#refreshButton:hover{
+cursor: pointer;
+}
+
+
+
+/*-------- MOBILE ----------*/
+@media only screen and (max-width: 480px) {
+  body {
+      padding: 5px;
+  }
+
+  .input-style, .login-button, .action-button {
+      margin: 5px 0;
+  }
+
+  .radio-options {
+      align-items: flex-start;
+  }
+
+  .radio-options input[type="radio"] + label {
+      display: block;
+      margin-bottom: 5px;
+  }
+}
+
+@media only screen and (max-width: 200px) {
+  #error-message {
+      font-size: 12px; /* Slightly smaller font for very narrow popups */
+      padding: 0 3px; /* Adjusted padding */
+  }
+}

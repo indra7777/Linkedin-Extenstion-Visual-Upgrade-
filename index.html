@@ -1,64 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LinkedIn Profile Extractor</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #0073b1;
-            text-align: center;
-        }
-        .instructions {
-            background: #e3f2fd;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-        .step {
-            margin: 10px 0;
-            padding: 10px;
-            background: #f8f9fa;
-            border-left: 4px solid #0073b1;
-        }
-    </style>
+    <meta name="description" content="The ultimate data extractor for LinkedIn Profiles or Candidates. Unnanu solves your ATS integration of your talent straight into your Unannu Hire ATS.">
+    <meta name="keywords" content="LinkedIn,Unnanu,ATS,Independent Recruiter,AI,resume scoring,recruiting,hiring,recruit,jobs,business,company,employer,employee,contractor,volunteer">
+    <link rel="stylesheet" href="style.css">
+    <title>Unnanu Data Extractor for LinkedIn</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Lora&display=swap" rel="stylesheet">
 </head>
+
 <body>
-    <div class="container">
-        <h1>LinkedIn Profile Extractor</h1>
-        
-        <div class="instructions">
-            <h2>How to Use:</h2>
-            <div class="step">
-                <strong>Step 1:</strong> Navigate to any LinkedIn profile page
+
+    <div class="content-center">
+        <img src="images/dashboard-logo.png" alt="Logo" class="centered-image">
+
+        <span class="signup-text">By clicking login below, you are accepting to Unnanu <a href="https://hire.unnanu.com/tos" target="_blank">Terms</a>, <a href="https://hire.unnanu.com/privacy" target="_blank">Privacy</a> and <a href="https://hire.unnanu.com/cookie" target="_blank">Cookie</a> policy.</span>
+
+        <div class="login-container">
+            <input type="email" placeholder="Email" id="emailInput" class="input-style">
+            <input type="password" placeholder="Password" id="passwordInput" class="input-style">
+
+            <span class="signup-text">Need account? <a href="https://hire.unnanu.com/pricing" id="signupLink" target="_blank">Signup here</a></span>
+
+            <button class="login-button">
+                <div class="loader"></div>
+                <span id="login-text">Login</span>
+            </button>
+
+            <span id="error-message">Failed to authenticate user, user is incorrect.</span>
+
+        </div>
+    </div>
+
+    <div class="main-container">
+
+        <div id="helperCenter">
+
+            <div class="info-container">
+                <div class="info-icon">i</div>
+                <div class="info-content">
+                    <span>Avoid refreshing or closing the tab <br>while extraction is ongoing.</span>
+                    <br><br>
+                    <span>If the extraction process doesn't initiate <br>upon pressing the button, simply refresh the
+                        page.</span>
+                </div>
             </div>
-            <div class="step">
-                <strong>Step 2:</strong> Look for the floating blue logo on the right side of the page
-            </div>
-            <div class="step">
-                <strong>Step 3:</strong> Click the floating logo to open the sidebar
-            </div>
-            <div class="step">
-                <strong>Step 4:</strong> View the profile information and click "Extract Profile" to save the data
+
+            <div id="refreshButton">
+                <img src="images/refreshIcon.jpg" style="height: 4vh; width: auto;">
             </div>
         </div>
-        
-        <p style="text-align: center; color: #666;">
-            This extension only works on LinkedIn profile pages (linkedin.com/in/...)
-        </p>
+
+        <button class="action-button" id="scrapeProfile">
+            <div class="loader" id="scrapeProfileLoader" style="display: none;"></div>
+            <span id="scrapeProfileText">Extract Current Profile</span>
+        </button>
+
+        <button class="action-button hire-action" id="scrapeApplicants">Extract Job Applicants</button>
+
+        <button class="action-button hire-action" id="scrapeProjects">Extract Recruiter Applicants</button> 
+
+        <button class="action-button hire-action" id="scrapeSales">Extract SN List Profiles</button> 
+
+        <div class="textHolder">
+            <span id="collected-profiles-count" style="margin-bottom: 5%;">Profiles collected: 0</span>  
+        </div>
+
+        <button class="action-button" id="logoutButton" style="margin-top: 10%; width: 50%;">Logout</button>
     </div>
+
+    <script src="libs/crypto.js"></script>
+    <script src="popup.js"></script>
 </body>
+
 </html>
