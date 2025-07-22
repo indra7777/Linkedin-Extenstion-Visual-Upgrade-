@@ -19,6 +19,7 @@
     padding: 15px 20px;
     border-bottom: 1px solid #e0e0e0;
     background: #f8f9fa;
+    gap: 15px;
 }
 
 .logo-container {
@@ -32,10 +33,21 @@
     height: 32px;
 }
 
-.logo-text {
-    font-size: 18px;
-    font-weight: 600;
-    color: #0073b1;
+.auth-status-header {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-status-header .status-indicator {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
 }
 
 .close-btn {
@@ -315,14 +327,6 @@
     text-align: center;
 }
 
-.auth-status-main {
-    margin-bottom: 20px;
-    padding: 10px;
-    background: #e8f5e8;
-    border-radius: 6px;
-    border-left: 4px solid #28a745;
-    text-align: center;
-}
 
 .status-indicator {
     font-size: 14px;
@@ -381,9 +385,302 @@
     background: #c82333;
 }
 
+/* Detailed Profile Styles */
+.detailed-profile {
+    animation: fadeIn 0.3s ease-in;
+}
+
+.profile-header {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.profile-stats {
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.stat {
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.profile-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #0073b1;
+}
+
+.experience-item, .education-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.experience-item:last-child, .education-item:last-child {
+    border-bottom: none;
+}
+
+.exp-title, .edu-school {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.exp-company, .edu-degree {
+    color: #0073b1;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.exp-duration, .edu-years {
+    color: #666;
+    font-size: 12px;
+}
+
+.extraction-info {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.success-message {
+    color: #155724;
+    font-weight: 500;
+    margin: 0 0 8px 0;
+}
+
+.timestamp {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+/* Certifications, Skills, Languages Styles */
+.certification-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.certification-item:last-child {
+    border-bottom: none;
+}
+
+.cert-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.cert-org {
+    color: #0073b1;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.cert-date {
+    color: #666;
+    font-size: 12px;
+}
+
+.skills-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.skill-tag {
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #bbdefb;
+}
+
+.language-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.language-item:last-child {
+    border-bottom: none;
+}
+
+.lang-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.lang-proficiency {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* Editable Contact Section Styles */
+.editable-section {
+    background: #f8f9fa !important;
+    border: 2px solid #0073b1 !important;
+}
+
+.contact-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #333;
+    font-size: 13px;
+}
+
+.contact-input {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+}
+
+.contact-input:focus {
+    outline: none;
+    border-color: #0073b1;
+    box-shadow: 0 0 0 2px rgba(0, 115, 177, 0.1);
+}
+
+.file-upload-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.file-upload-btn {
+    background: #0073b1;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s ease;
+    align-self: flex-start;
+}
+
+.file-upload-btn:hover {
+    background: #005885;
+}
+
+.file-name {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+.save-contact-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.2s ease;
+    margin-top: 10px;
+}
+
+.save-contact-btn:hover {
+    background: #218838;
+}
+
+/* Profile Summary Styles */
+.summary-section {
+    background: #e8f4f8 !important;
+    border-left: 4px solid #0073b1 !important;
+}
+
+.summary-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+.stat-label {
+    font-weight: 500;
+    color: #666;
+    font-size: 13px;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: #0073b1;
+    font-size: 13px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .sidebar-container {
         width: 100%;
+    }
+    
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .profile-stats {
+        justify-content: center;
     }
 }

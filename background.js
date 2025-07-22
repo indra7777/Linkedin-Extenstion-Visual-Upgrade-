@@ -5,14 +5,19 @@ console.log('Unnanu background script loaded');
 chrome.action.onClicked.addListener((tab) => {
     console.log('Extension icon clicked on tab:', tab.url);
     
-    // Always toggle sidebar - authentication will be handled within the sidebar
-    chrome.tabs.sendMessage(tab.id, { action: 'toggleSidebar' }, (response) => {
-        if (chrome.runtime.lastError) {
-            console.log('Content script not ready yet');
-        } else {
-            console.log('Toggle message sent successfully');
-        }
-    });
+    // Only allow sidebar toggle on LinkedIn pages
+    if (tab.url && tab.url.includes('linkedin.com')) {
+        // Toggle sidebar - authentication will be handled within the sidebar
+        chrome.tabs.sendMessage(tab.id, { action: 'toggleSidebar' }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.log('Content script not ready yet');
+            } else {
+                console.log('Toggle message sent successfully');
+            }
+        });
+    } else {
+        console.log('Extension only works on LinkedIn pages');
+    }
 });
 
 // Listen for messages from content scripts and popup
