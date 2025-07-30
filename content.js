@@ -1,5 +1,18 @@
 console.log("Unnanu LinkedIn Extension loaded!");
 
+// Block extension detection attempts from websites
+(function() {
+    const originalFetch = window.fetch;
+    window.fetch = function(...args) {
+        const url = args[0];
+        if (typeof url === 'string' && url.startsWith('chrome-extension://')) {
+            // Block fetch requests to chrome-extension:// URLs from page scripts
+            return Promise.reject(new Error('Extension access blocked'));
+        }
+        return originalFetch.apply(this, args);
+    };
+})();
+
 // Check if we're on a LinkedIn page
 function isLinkedInPage() {
     return window.location.href.includes('linkedin.com');
@@ -50,6 +63,8 @@ if (isLinkedInPage()) {
 // Track sidebar state
 let sidebarOpen = false;
 let isAuthenticated = false;
+let currentUrl = window.location.href;
+let lastProfileData = null;
 
 // Add click functionality to toggle sidebar (only if icon exists)
 if (icon) {
@@ -79,28 +94,41 @@ function extractLinkedInProfile() {
     }
     
     try {
-        // Extract profile image with more selectors
+        // Extract profile image with more specific and validated selectors
+        let profileImage = '';
+        
+        // First, try to get the main profile image from the profile header
         const profileImageSelectors = [
+            // Most specific selectors for the main profile image
+            '.pv-top-card-profile-picture__image--show img',
             'img.pv-top-card-profile-picture__image',
-            'img.profile-photo-edit__preview',
             '.pv-top-card__photo img',
-            '.profile-photo img',
-            'img[data-ghost-classes="pv-top-card-profile-picture__image"]',
-            '.pv-top-card-profile-picture__image',
             '.pv-top-card-profile-picture img',
-            'button img[alt*="profile photo"]',
-            'img[alt*="profile picture"]'
+            'button.pv-top-card-profile-picture img'
         ];
         
-        let profileImage = '';
         for (const selector of profileImageSelectors) {
             const imgElement = document.querySelector(selector);
-            if (imgElement && imgElement.src) {
+            if (imgElement && imgElement.src && isValidProfileImage(imgElement.src)) {
                 profileImage = imgElement.src;
-                console.log('Found profile image:', profileImage);
+                console.log('Found valid profile image:', profileImage);
                 break;
             }
         }
+        
+        // If no image found with specific selectors, look for images with profile-related alt text
+        if (!profileImage) {
+            const altTextImages = document.querySelectorAll('img[alt*="profile photo"], img[alt*="profile picture"]');
+            for (const imgElement of altTextImages) {
+                if (imgElement.src && isValidProfileImage(imgElement.src) && isInProfileSection(imgElement)) {
+                    profileImage = imgElement.src;
+                    console.log('Found profile image via alt text:', profileImage);
+                    break;
+                }
+            }
+        }
+        
+        console.log('Final profile image result:', profileImage || 'No valid profile image found');
 
         // Extract name with more selectors
         const nameSelectors = [
@@ -404,6 +432,104 @@ function extractLinkedInProfile() {
     }
 }
 
+// Helper function to validate if an image URL is a real profile image
+function isValidProfileImage(imageUrl) {
+    if (!imageUrl || typeof imageUrl !== 'string') {
+        return false;
+    }
+    
+    // Check if it's a data URL (inline image) - these are usually not profile images
+    if (imageUrl.startsWith('data:')) {
+        return false;
+    }
+    
+    // Check for common LinkedIn default/placeholder image patterns
+    const invalidPatterns = [
+        '/static/images/',
+        '/common/images/',
+        'default-profile',
+        'ghost-person',
+        'linkedin-icon',
+        'company-logo',
+        'generic-profile',
+        'blank-profile',
+        'anonymous',
+        'default_',
+        '_default',
+        'placeholder'
+    ];
+    
+    const lowerUrl = imageUrl.toLowerCase();
+    for (const pattern of invalidPatterns) {
+        if (lowerUrl.includes(pattern)) {
+            console.log('Rejected image (invalid pattern):', imageUrl);
+            return false;
+        }
+    }
+    
+    // Must contain LinkedIn media patterns for actual profile photos
+    const validPatterns = [
+        'media.licdn.com',
+        'media-exp',
+        '/profile-displayphoto-shrink',
+        '/profile-displayphoto',
+        'linkedin.com/dms/image'
+    ];
+    
+    for (const pattern of validPatterns) {
+        if (lowerUrl.includes(pattern)) {
+            console.log('Accepted image (valid pattern):', imageUrl);
+            return true;
+        }
+    }
+    
+    // If no valid patterns found, it's likely not a real profile image
+    console.log('Rejected image (no valid patterns):', imageUrl);
+    return false;
+}
+
+// Helper function to check if an image element is in the profile section
+function isInProfileSection(imgElement) {
+    if (!imgElement) return false;
+    
+    // Check if the image is within the main profile section
+    const profileSections = [
+        '.pv-top-card',
+        '.profile-photo-edit',
+        '.pv-profile-sticky-header',
+        '.ph5.pb5',
+        '.artdeco-card.pv-profile-sticky-header'
+    ];
+    
+    for (const sectionSelector of profileSections) {
+        const section = document.querySelector(sectionSelector);
+        if (section && section.contains(imgElement)) {
+            console.log('Image found in profile section:', sectionSelector);
+            return true;
+        }
+    }
+    
+    // Check if it's close to the profile name
+    const nameElements = document.querySelectorAll('h1.text-heading-xlarge, .pv-text-details__left-panel h1');
+    for (const nameElement of nameElements) {
+        const rect1 = imgElement.getBoundingClientRect();
+        const rect2 = nameElement.getBoundingClientRect();
+        
+        // If image is within reasonable distance from name (same general area)
+        const distance = Math.sqrt(
+            Math.pow(rect1.x - rect2.x, 2) + Math.pow(rect1.y - rect2.y, 2)
+        );
+        
+        if (distance < 300) { // Within 300px
+            console.log('Image found near profile name');
+            return true;
+        }
+    }
+    
+    console.log('Image not found in profile section');
+    return false;
+}
+
 // Helper function to extract email from profile if visible
 function extractEmailFromProfile() {
     try {
@@ -534,6 +660,24 @@ function sendProfileDataToSidebar() {
     
     const profileData = extractLinkedInProfile();
     
+    // Check if this is a different profile than the last one extracted
+    const profileHash = profileData.url + (profileData.fullName || '');
+    const lastProfileHash = lastProfileData ? (lastProfileData.url + (lastProfileData.fullName || '')) : '';
+    
+    if (profileHash !== lastProfileHash) {
+        console.log('New profile detected, checking cached contact info');
+        // Only clear cached contact info if it wasn't extracted from overlay
+        chrome.storage.local.get(['profileContactInfo'], function(result) {
+            if (result.profileContactInfo && !result.profileContactInfo.extractedFromOverlay) {
+                console.log('Clearing non-overlay contact info for new profile');
+                chrome.storage.local.remove(['profileContactInfo']);
+            } else if (result.profileContactInfo && result.profileContactInfo.extractedFromOverlay) {
+                console.log('Preserving overlay-extracted contact info for profile change');
+            }
+        });
+        lastProfileData = profileData;
+    }
+    
     iframe.contentWindow.postMessage({
         action: 'updateProfile',
         profileData: {
@@ -618,8 +762,68 @@ if (icon) {
     
     // Check authentication status on page load to determine icon visibility
     checkInitialAuthStatus();
+    
+    // Set up URL change detection for dynamic profile updates
+    setupUrlChangeDetection();
+    
+    // Set up contact info overlay detection
+    setupContactInfoOverlayDetection();
 } else {
     console.log("Not on LinkedIn page, icon not created");
+}
+
+// Set up URL change detection for LinkedIn SPA navigation
+function setupUrlChangeDetection() {
+    console.log('Setting up URL change detection');
+    
+    // Override pushState and replaceState to detect navigation
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+    
+    history.pushState = function() {
+        originalPushState.apply(history, arguments);
+        handleUrlChange();
+    };
+    
+    history.replaceState = function() {
+        originalReplaceState.apply(history, arguments);
+        handleUrlChange();
+    };
+    
+    // Listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', handleUrlChange);
+    
+    // Also check periodically in case LinkedIn uses other navigation methods
+    setInterval(checkForUrlChange, 1000);
+}
+
+// Handle URL changes
+function handleUrlChange() {
+    const newUrl = window.location.href;
+    
+    if (newUrl !== currentUrl) {
+        console.log('URL changed from', currentUrl, 'to', newUrl);
+        currentUrl = newUrl;
+        
+        // If sidebar is open and user is authenticated, update profile data
+        if (sidebarOpen && isAuthenticated && newUrl.includes('linkedin.com/in/')) {
+            console.log('Profile URL changed, updating sidebar with new profile data');
+            
+            // Small delay to allow LinkedIn to load the new profile content
+            setTimeout(() => {
+                sendProfileDataToSidebar();
+            }, 1500);
+        }
+    }
+}
+
+// Periodic check for URL changes (fallback method)
+function checkForUrlChange() {
+    const newUrl = window.location.href;
+    
+    if (newUrl !== currentUrl) {
+        handleUrlChange();
+    }
 }
 
 // Check initial authentication status to determine icon visibility
@@ -717,3 +921,112 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     return true;
 });
+
+// Set up contact info overlay detection
+function setupContactInfoOverlayDetection() {
+    console.log('Setting up contact info overlay detection');
+    
+    // Use MutationObserver to detect when contact info overlay appears
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    // Check if the added node contains the contact info modal
+                    const contactModal = node.querySelector?.('.artdeco-modal__content') || 
+                                       (node.classList?.contains('artdeco-modal__content') ? node : null);
+                    
+                    if (contactModal && contactModal.textContent.includes('Contact Info')) {
+                        console.log('Contact info overlay detected');
+                        setTimeout(() => extractContactInfoFromOverlay(contactModal), 500);
+                    }
+                }
+            });
+        });
+    });
+    
+    // Start observing the document body for changes
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+}
+
+// Extract contact information from LinkedIn contact info overlay
+function extractContactInfoFromOverlay(modalElement) {
+    console.log('Extracting contact info from overlay');
+    
+    const contactInfo = {
+        phones: [],
+        emails: []
+    };
+    
+    try {
+        // Extract phone numbers - using more robust selectors
+        const phoneSections = modalElement.querySelectorAll('section');
+        for (const section of phoneSections) {
+            if (section.innerHTML.includes('phone-handset-medium') || 
+                section.innerHTML.includes('Phone')) {
+                const phoneElements = section.querySelectorAll('span.t-14.t-black.t-normal');
+                phoneElements.forEach(phoneEl => {
+                    const phone = phoneEl.textContent.trim();
+                    // Check if it looks like a phone number (contains digits and is reasonable length)
+                    if (phone && /\d{3,}/.test(phone) && phone.length > 5 && phone.length < 20) {
+                        contactInfo.phones.push(phone);
+                        console.log('Found phone:', phone);
+                    }
+                });
+            }
+        }
+        
+        // Extract email addresses - using more robust selectors
+        const emailSections = modalElement.querySelectorAll('section');
+        for (const section of emailSections) {
+            if (section.innerHTML.includes('envelope-medium') || 
+                section.innerHTML.includes('Email')) {
+                const emailLinks = section.querySelectorAll('a[href^="mailto:"]');
+                emailLinks.forEach(emailLink => {
+                    const email = emailLink.textContent.trim();
+                    if (email && email.includes('@') && email.includes('.')) {
+                        contactInfo.emails.push(email);
+                        console.log('Found email:', email);
+                    }
+                });
+                
+                // Also look for email text that might not be in mailto links
+                const emailTexts = section.querySelectorAll('a, span, div');
+                emailTexts.forEach(emailEl => {
+                    const emailText = emailEl.textContent.trim();
+                    if (emailText && emailText.includes('@') && emailText.includes('.') && 
+                        emailText.length < 50 && !contactInfo.emails.includes(emailText)) {
+                        contactInfo.emails.push(emailText);
+                        console.log('Found email text:', emailText);
+                    }
+                });
+            }
+        }
+        
+        // Send extracted contact info to sidebar if it's open
+        if (sidebarOpen) {
+            sendContactInfoToSidebar(contactInfo);
+        }
+        
+        console.log('Extracted contact info:', contactInfo);
+        return contactInfo;
+        
+    } catch (error) {
+        console.error('Error extracting contact info from overlay:', error);
+        return contactInfo;
+    }
+}
+
+// Send extracted contact info to sidebar
+function sendContactInfoToSidebar(contactInfo) {
+    console.log('Sending contact info from overlay to sidebar');
+    const iframe = document.getElementById('unnanu-sidebar-iframe');
+    if (!iframe) return;
+    
+    iframe.contentWindow.postMessage({
+        action: 'overlayContactInfo',
+        contactInfo: contactInfo
+    }, '*');
+}
