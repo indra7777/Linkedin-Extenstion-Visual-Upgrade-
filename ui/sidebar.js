@@ -287,20 +287,43 @@ window.addEventListener('message', function(event) {
 function displayProfileData(profileData) {
     console.log('Displaying profile data:', profileData);
     
-    // Check if this is a new profile
+    // Extract profile IDs for comparison instead of full URLs
+    const currentProfileId = currentProfileData ? extractLinkedInProfileId(currentProfileData.url) : '';
+    const newProfileId = extractLinkedInProfileId(profileData.url);
+    
+    // Check if this is a new profile based on profile ID rather than full URL
     const isNewProfile = !currentProfileData || 
-                        currentProfileData.url !== profileData.url ||
+                        currentProfileId !== newProfileId ||
                         (currentProfileData.firstName + ' ' + currentProfileData.lastName) !== (profileData.firstName + ' ' + profileData.lastName);
     
+    console.log('Profile ID comparison - Current:', currentProfileId, 'New:', newProfileId, 'Is new profile:', isNewProfile);
+    
     if (isNewProfile) {
-        console.log('New profile detected, clearing cached data');
-        // Only clear cached contact information if it wasn't extracted from overlay
+        console.log('New profile detected, checking existing contact info');
+        
+        // Check if we have overlay-extracted contact info for a different profile
         chrome.storage.local.get(['profileContactInfo'], function(result) {
-            if (result.profileContactInfo && !result.profileContactInfo.extractedFromOverlay) {
-                console.log('Clearing non-overlay contact info for new profile');
-                chrome.storage.local.remove(['profileContactInfo']);
-            } else if (result.profileContactInfo && result.profileContactInfo.extractedFromOverlay) {
-                console.log('Preserving overlay-extracted contact info for new profile');
+            const storedProfileId = result.profileContactInfo ? extractLinkedInProfileId(result.profileContactInfo.linkedinUrl) : '';
+            
+            const shouldClearContactInfo = !result.profileContactInfo || 
+                                         !result.profileContactInfo.extractedFromOverlay ||
+                                         storedProfileId !== newProfileId;
+            
+            console.log('Contact info check - Stored profile ID:', storedProfileId, 'Should clear:', shouldClearContactInfo);
+            
+            if (shouldClearContactInfo) {
+                console.log('Clearing contact info for new profile or different profile overlay data');
+                chrome.storage.local.remove(['profileContactInfo'], function() {
+                    console.log('Cleared contact info for new profile');
+                });
+                
+                // Clear form fields immediately when profile changes
+                setTimeout(() => {
+                    clearContactFieldsForNewProfile();
+                }, 100);
+            } else {
+                console.log('Preserving overlay-extracted contact info for same profile ID');
+                // Don't clear form fields if we're preserving overlay data for the same profile
             }
         });
     }
@@ -752,17 +775,30 @@ function displayDetailedProfile(profileData) {
                         </div>
                         <div class="form-group">
                             <label for="linkedinUrlInput">LinkedIn URL:</label>
-                            <input type="url" id="linkedinUrlInput" name="linkedinUrl" class="contact-input" placeholder="Enter LinkedIn URL" value="${profileData.url || ''}">
+                            <input type="url" id="linkedinUrlInput" name="linkedinUrl" class="contact-input" placeholder="LinkedIn URL (auto-filled)" value="${profileData.url || ''}" readonly>
                         </div>
                         <div class="form-group">
                             <label for="resumeUpload">Resume Upload:</label>
                             <div class="resume-upload-container">
                                 <input type="file" id="resumeUpload" name="resume" accept=".pdf,.doc,.docx" style="display: none;">
-                                <button type="button" class="file-upload-btn" id="resumeUploadBtn">
-                                    📄 Choose Resume File
-                                </button>
+                                <div class="file-controls">
+                                    <button type="button" class="file-upload-btn" id="resumeUploadBtn">
+                                        📄 Choose Resume File
+                                    </button>
+                                    <button type="button" class="remove-file-btn" id="removeResumeBtn" style="display: none;">
+                                        🗑️ Remove File
+                                    </button>
+                                    <button type="button" class="upload-to-server-btn" id="uploadToServerBtn" style="display: none;">
+                                        ☁️ Upload to Server
+                                    </button>
+                                </div>
                                 <div id="resumeFileName" class="file-name" style="display: none;"></div>
                                 <div id="resumeUploadStatus" class="upload-status" style="display: none;"></div>
+                                <div id="resumePreview" class="resume-preview" style="display: none;">
+                                    <p><strong>Selected File:</strong> <span id="selectedFileName"></span></p>
+                                    <p><strong>File Size:</strong> <span id="selectedFileSize"></span></p>
+                                    <p><strong>Status:</strong> <span id="uploadStatusText">Ready to upload</span></p>
+                                </div>
                             </div>
                         </div>
                         <button class="save-contact-btn" id="saveContactBtn" style="margin-top: 20px;">💾 Save Contact Info</button>
@@ -814,6 +850,8 @@ function displayDetailedProfile(profileData) {
             const saveContactBtn = document.getElementById('saveContactBtn');
             const resumeUploadBtn = document.getElementById('resumeUploadBtn');
             const resumeUpload = document.getElementById('resumeUpload');
+            const removeResumeBtn = document.getElementById('removeResumeBtn');
+            const uploadToServerBtn = document.getElementById('uploadToServerBtn');
             
             // Save contact button event listener
             if (saveContactBtn) {
@@ -822,14 +860,28 @@ function displayDetailedProfile(profileData) {
                 });
             }
             
-            // Resume upload button event listener
+            // Resume file selection event listener
             if (resumeUploadBtn && resumeUpload) {
                 resumeUploadBtn.addEventListener('click', function() {
                     resumeUpload.click();
                 });
                 
                 resumeUpload.addEventListener('change', function(e) {
-                    handleResumeUpload(e.target.files[0]);
+                    handleFileSelection(e.target.files[0]);
+                });
+            }
+            
+            // Remove resume file event listener
+            if (removeResumeBtn) {
+                removeResumeBtn.addEventListener('click', function() {
+                    removeSelectedFile();
+                });
+            }
+            
+            // Upload to server event listener
+            if (uploadToServerBtn) {
+                uploadToServerBtn.addEventListener('click', function() {
+                    uploadResumeToServer();
                 });
             }
             
@@ -897,10 +949,15 @@ function initializeFormFields(profileData, attempts = 0) {
 function clearContactFields() {
     console.log('Clearing contact form fields for new profile');
     
-    // First check if there's overlay-extracted data that should be preserved
+    // First check if there's overlay-extracted data that should be preserved for the current profile
     chrome.storage.local.get(['profileContactInfo'], function(result) {
-        const hasOverlayData = result.profileContactInfo && result.profileContactInfo.extractedFromOverlay;
-        console.log('Has overlay data to preserve:', hasOverlayData);
+        const currentProfileId = currentProfileData ? extractLinkedInProfileId(currentProfileData.url) : '';
+        const storedProfileId = result.profileContactInfo ? extractLinkedInProfileId(result.profileContactInfo.linkedinUrl) : '';
+        
+        const hasOverlayDataForCurrentProfile = result.profileContactInfo && 
+                                              result.profileContactInfo.extractedFromOverlay &&
+                                              storedProfileId === currentProfileId;
+        console.log('Has overlay data to preserve for current profile:', hasOverlayDataForCurrentProfile);
         
         const firstNameInput = document.getElementById('firstNameInput');
         const lastNameInput = document.getElementById('lastNameInput');
@@ -923,8 +980,8 @@ function clearContactFields() {
             lastNameInput.style.backgroundColor = '';
         }
         
-        // Only clear phone and email if they weren't extracted from overlay
-        if (!hasOverlayData) {
+        // Only clear phone and email if they weren't extracted from overlay for current profile
+        if (!hasOverlayDataForCurrentProfile) {
             if (phoneInput) {
                 phoneInput.value = '';
                 phoneInput.style.borderColor = '';
@@ -937,7 +994,7 @@ function clearContactFields() {
                 emailInput.style.backgroundColor = '';
             }
         } else {
-            console.log('Preserving overlay-extracted phone and email data');
+            console.log('Preserving overlay-extracted phone and email data for current profile');
         }
         
         // Clear contact option buttons
@@ -957,8 +1014,8 @@ function clearContactFields() {
             emailOptions.innerHTML = '';
         }
         
-        // Reset header status only if no overlay data
-        if (!hasOverlayData) {
+        // Reset header status only if no overlay data for current profile
+        if (!hasOverlayDataForCurrentProfile) {
             const authStatusHeader = document.getElementById('authStatusHeader');
             if (authStatusHeader) {
                 const statusIndicator = authStatusHeader.querySelector('.status-indicator');
@@ -971,6 +1028,74 @@ function clearContactFields() {
             }
         }
     });
+}
+
+// Function to clear contact form fields specifically for new profiles (clears everything)
+function clearContactFieldsForNewProfile() {
+    console.log('Clearing ALL contact form fields for new profile');
+    
+    const firstNameInput = document.getElementById('firstNameInput');
+    const lastNameInput = document.getElementById('lastNameInput');
+    const phoneInput = document.getElementById('phoneInput');
+    const emailInput = document.getElementById('emailInputProfile');
+    const firstNameOptions = document.getElementById('firstNameOptions');
+    const lastNameOptions = document.getElementById('lastNameOptions');
+    const phoneOptions = document.getElementById('phoneOptions');
+    const emailOptions = document.getElementById('emailOptions');
+    
+    // Clear all input fields regardless of source
+    if (firstNameInput) {
+        firstNameInput.value = '';
+        firstNameInput.style.borderColor = '';
+        firstNameInput.style.backgroundColor = '';
+    }
+    
+    if (lastNameInput) {
+        lastNameInput.value = '';
+        lastNameInput.style.borderColor = '';
+        lastNameInput.style.backgroundColor = '';
+    }
+    
+    if (phoneInput) {
+        phoneInput.value = '';
+        phoneInput.style.borderColor = '';
+        phoneInput.style.backgroundColor = '';
+    }
+    
+    if (emailInput) {
+        emailInput.value = '';
+        emailInput.style.borderColor = '';
+        emailInput.style.backgroundColor = '';
+    }
+    
+    // Clear all contact option buttons
+    if (firstNameOptions) {
+        firstNameOptions.innerHTML = '';
+    }
+    
+    if (lastNameOptions) {
+        lastNameOptions.innerHTML = '';
+    }
+    
+    if (phoneOptions) {
+        phoneOptions.innerHTML = '';
+    }
+    
+    if (emailOptions) {
+        emailOptions.innerHTML = '';
+    }
+    
+    // Reset header status
+    const authStatusHeader = document.getElementById('authStatusHeader');
+    if (authStatusHeader) {
+        const statusIndicator = authStatusHeader.querySelector('.status-indicator');
+        if (statusIndicator) {
+            statusIndicator.textContent = 'Logged in';
+            statusIndicator.style.background = '';
+            statusIndicator.style.color = '';
+            statusIndicator.style.border = '';
+        }
+    }
 }
 
 // Function to use contact value from buttons
@@ -1024,9 +1149,13 @@ function updateHeaderStatus(message) {
     }
 }
 
-// Function to handle resume file upload
-async function handleResumeUpload(file) {
-    console.log('Handling resume upload:', file);
+// Global variable to store selected file
+let selectedResumeFile = null;
+let uploadedResumeUrl = null;
+
+// Function to handle file selection (Step 1: User selects file)
+function handleFileSelection(file) {
+    console.log('Handling file selection:', file);
     
     if (!file) {
         console.log('No file selected');
@@ -1037,47 +1166,225 @@ async function handleResumeUpload(file) {
     const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     if (!allowedTypes.includes(file.type)) {
         showResumeUploadStatus('Please select a PDF, DOC, or DOCX file.', 'error');
+        clearFileSelection();
         return;
     }
     
-    // Validate file size (max 2MB)
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
-        showResumeUploadStatus('File size must be less than 2MB.', 'error');
+        showResumeUploadStatus('File size must be less than 5MB.', 'error');
+        clearFileSelection();
         return;
     }
     
-    // Show file name
-    const resumeFileName = document.getElementById('resumeFileName');
-    if (resumeFileName) {
-        resumeFileName.textContent = `Selected: ${file.name}`;
-        resumeFileName.style.display = 'block';
+    // Store the selected file
+    selectedResumeFile = file;
+    console.log('Selected file:', selectedResumeFile);
+    //print binary data of file
+    console.log('Selected file binary data:', selectedResumeFile.arrayBuffer ? selectedResumeFile.arrayBuffer() : 'No binary data available');
+
+    
+    // Show file preview and controls
+    // showFilePreview(file);
+   
+    showFileControls();
+    
+    showResumeUploadStatus('File selected successfully. Click "Upload to Server" to upload.', 'info');
+}
+
+// Function to show file preview
+function showFilePreview(file) {
+    const resumePreview = document.getElementById('resumePreview');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const selectedFileSize = document.getElementById('selectedFileSize');
+    const uploadStatusText = document.getElementById('uploadStatusText');
+    
+    if (resumePreview && selectedFileName && selectedFileSize && uploadStatusText) {
+        selectedFileName.textContent = file.name;
+        selectedFileSize.textContent = formatFileSize(file.size);
+        uploadStatusText.textContent = 'Ready to upload';
+        uploadStatusText.style.color = '#007bff';
+        resumePreview.style.display = 'block';
+    }
+   
+}
+
+// Function to show file control buttons
+function showFileControls() {
+    const removeResumeBtn = document.getElementById('removeResumeBtn');
+    const uploadToServerBtn = document.getElementById('uploadToServerBtn');
+    
+    if (removeResumeBtn) {
+        removeResumeBtn.style.display = 'inline-block';
     }
     
-    // Show uploading status
-    showResumeUploadStatus('Uploading resume...', 'info');
+    if (uploadToServerBtn) {
+        uploadToServerBtn.style.display = 'inline-block';
+        uploadToServerBtn.disabled = false;
+        uploadToServerBtn.textContent = '☁️ Upload to Server';
+    }
+}
+
+// Function to remove selected file (Step 3: User can remove file before upload)
+function removeSelectedFile() {
+    console.log('Removing selected file');
+    
+    // Clear the file input
+    const resumeUpload = document.getElementById('resumeUpload');
+    if (resumeUpload) {
+        resumeUpload.value = '';
+    }
+    
+    // Clear file selection
+    clearFileSelection();
+    
+    showResumeUploadStatus('File removed successfully.', 'info');
+}
+
+// Function to clear file selection and UI
+function clearFileSelection() {
+    selectedResumeFile = null;
+    
+    const resumePreview = document.getElementById('resumePreview');
+    const removeResumeBtn = document.getElementById('removeResumeBtn');
+    const uploadToServerBtn = document.getElementById('uploadToServerBtn');
+    
+    if (resumePreview) {
+        resumePreview.style.display = 'none';
+    }
+    
+    if (removeResumeBtn) {
+        removeResumeBtn.style.display = 'none';
+    }
+    
+    if (uploadToServerBtn) {
+        uploadToServerBtn.style.display = 'none';
+    }
+}
+
+// Function to upload resume to server (Step 2: Upload to API)
+async function uploadResumeToServer() {
+    console.log('Uploading resume to server');
+    
+    if (!selectedResumeFile) {
+        showResumeUploadStatus('No file selected to upload.', 'error');
+        return;
+    }
+    
+    if (!currentUserData || !currentUserData.token) {
+        showResumeUploadStatus('Please login to upload files.', 'error');
+        return;
+    }
+    
+    const uploadToServerBtn = document.getElementById('uploadToServerBtn');
+    const uploadStatusText = document.getElementById('uploadStatusText');
     
     try {
-        // Convert file to base64 for upload
-        const base64Data = await fileToBase64(file);
+        // Show uploading status
+        if (uploadToServerBtn) {
+            uploadToServerBtn.disabled = true;
+            uploadToServerBtn.textContent = '⏳ Uploading...';
+        }
         
-        // Prepare the upload data according to DTO_ResumeData format
-        const uploadData = {
-            attachment_type: 1, // Resume type
-            attachment_url: base64Data, // Base64 encoded file data
-            file_name: file.name,
-            co_guid: generateGUID() // Generate a unique GUID
-        };
+        if (uploadStatusText) {
+            uploadStatusText.textContent = 'Uploading to server...';
+            uploadStatusText.style.color = '#ffc107';
+        }
         
-        // Upload to API
-        await uploadResumeToAPI(uploadData);
+        showResumeUploadStatus('Uploading resume to server...', 'info');
+        
+        // Convert File to actual binary data
+        console.log('Converting file to binary data...');
+        
+        try {
+            const formData = new FormData();
+
+            // Append the file directly. The browser will handle the rest.
+            formData.append('uploaded_file', selectedResumeFile);
+
+            // Determine file type based on MIME type
+            let fileType = '2'; // Default to '2' for other document types
+
+            formData.append('file_type', fileType);
+            formData.append('co_guid', ''); // Empty string instead of space
+
+            console.log('Final upload payload:', {
+                fileName: selectedResumeFile.name,
+                mimeType: selectedResumeFile.type,
+                fileType: fileType,
+                originalFileSize: selectedResumeFile.size,
+            });
+
+            // Debug: Log FormData contents
+            console.log('FormData contents:');
+            for (let [key, value] of formData.entries()) {
+                if (value instanceof File) {
+                    console.log(`${key}:`, {
+                        type: 'File',
+                        size: value.size,
+                        mimeType: value.type,
+                        name: value.name
+                    });
+                } else {
+                    console.log(`${key}:`, value);
+                }
+            }
+
+            // Upload to API with actual binary data
+            const result = await uploadResumeToAPI(formData);
+
+        } catch (fileConversionError) {
+            console.error('Error preparing file for upload:', fileConversionError);
+            throw new Error('Failed to process file for upload: ' + fileConversionError.message);
+        }
+        
+        // Store the uploaded file URL
+        if (result && result.url) {
+            uploadedResumeUrl = result.url;
+        }
+        
+        // Update UI for successful upload
+        if (uploadToServerBtn) {
+            uploadToServerBtn.textContent = '✅ Uploaded';
+            uploadToServerBtn.style.backgroundColor = '#28a745';
+            uploadToServerBtn.style.color = 'white';
+        }
+        
+        if (uploadStatusText) {
+            uploadStatusText.textContent = 'Successfully uploaded to server';
+            uploadStatusText.style.color = '#28a745';
+        }
         
         showResumeUploadStatus('Resume uploaded successfully!', 'success');
         
     } catch (error) {
         console.error('Resume upload failed:', error);
+        
+        // Reset UI on error
+        if (uploadToServerBtn) {
+            uploadToServerBtn.disabled = false;
+            uploadToServerBtn.textContent = '☁️ Upload to Server';
+            uploadToServerBtn.style.backgroundColor = '';
+            uploadToServerBtn.style.color = '';
+        }
+        
+        if (uploadStatusText) {
+            uploadStatusText.textContent = 'Upload failed';
+            uploadStatusText.style.color = '#dc3545';
+        }
+        
         showResumeUploadStatus('Failed to upload resume. Please try again.', 'error');
     }
+}
+
+// Helper function to format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // Function to convert file to base64
@@ -1104,8 +1411,8 @@ function generateGUID() {
 }
 
 // Function to upload resume data to API
-async function uploadResumeToAPI(uploadData) {
-    console.log('Uploading resume to API:', uploadData);
+async function uploadResumeToAPI(formData) {
+    console.log('Uploading resume to API with FormData');
     
     if (!currentUserData || !currentUserData.token) {
         throw new Error('User not authenticated');
@@ -1113,24 +1420,47 @@ async function uploadResumeToAPI(uploadData) {
     
     const apiEndpoint = 'https://uat-hire-oth-v5.unnanu.com/api/v1/account/contact/upload';
     
-    const response = await fetch(apiEndpoint, {
+    console.log('API Request Details:', {
+        endpoint: apiEndpoint,
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentUserData.token}`
-        },
-        body: JSON.stringify(uploadData)
+        hasAuthToken: !!currentUserData.token,
+        tokenPrefix: currentUserData.token ? currentUserData.token.substring(0, 10) + '...' : 'none'
     });
     
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    try {
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentUserData.token}`
+                // Note: Don't set Content-Type header when using FormData - browser sets it automatically
+            },
+            body: formData
+        });
+        
+        console.log('API Response Status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+            let errorDetails;
+            try {
+                errorDetails = await response.text();
+                console.error('API Error Response:', errorDetails);
+            } catch (parseError) {
+                errorDetails = 'Unable to parse error response';
+                console.error('Error parsing API error response:', parseError);
+            }
+            
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorDetails}`);
+        }
+        
+        const result = await response.json();
+        console.log('Resume upload API response:', result);
+        
+        return result;
+        
+    } catch (networkError) {
+        console.error('Network error during upload:', networkError);
+        throw networkError;
     }
-    
-    const result = await response.json();
-    console.log('Resume upload API response:', result);
-    
-    return result;
 }
 
 // Function to show resume upload status
@@ -1417,6 +1747,28 @@ async function findContactInfo(profileData, userData) {
     }
 }
 
+// Helper function to extract LinkedIn profile ID from URL
+function extractLinkedInProfileId(url) {
+    if (!url) return '';
+    
+    try {
+        // Handle different LinkedIn URL formats
+        // Standard: https://www.linkedin.com/in/profile-id/
+        // Overlay: https://www.linkedin.com/in/profile-id/overlay/contact-info/
+        // Detail: https://www.linkedin.com/in/profile-id/detail/contact-info/
+        
+        const match = url.match(/\/in\/([^\/\?]+)/);
+        if (match && match[1]) {
+            return match[1].toLowerCase(); // Return profile ID in lowercase for consistency
+        }
+        
+        return '';
+    } catch (error) {
+        console.error('Error extracting LinkedIn profile ID:', error);
+        return '';
+    }
+}
+
 // Helper function to normalize LinkedIn URLs
 function normalizeLinkedInUrl(url) {
     if (!url) return '';
@@ -1483,18 +1835,26 @@ window.saveContactInfo = function() {
 async function sendContactInfoToAPI(contactInfo) {
     console.log('Sending contact info to API:', contactInfo);
 
-    // Create JSON payload instead of FormData
+    // Create JSON payload with all required fields
     const payload = {
+        contactId: 0, // 0 for new contact
         firstName: contactInfo.firstName || currentProfileData.firstName || '',
         lastName: contactInfo.lastName || currentProfileData.lastName || '',
         title: currentProfileData.headline || '',
         skills: currentProfileData.skills ? currentProfileData.skills.join(', ') : '',
         email: contactInfo.email || '',
         phone: contactInfo.phone || '',
+        available: true, // Default to available
         location: currentProfileData.location || '',
-        linkedin: contactInfo.linkedinUrl || '',
+        relocation: false, // Default to false
+        unnanuId: currentUserData.id || 0,
         imageUrl: currentProfileData.profileImage || '',
-        unnanuId: currentUserData.id || ''
+        resumeUrl: uploadedResumeUrl || '', // Include uploaded resume URL
+        salary: '', // Default empty
+        source: 'linkedin-plugin', // Set source as linkedin-plugin
+        jobtype: '', // Default empty
+        notes: '', // Default empty
+        canDetails: '' // Default empty - could include profile JSON if needed
     };
 
     const apiEndpoint = crmAPI + '/api/v1/account/contact/add';

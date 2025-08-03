@@ -653,6 +653,28 @@ function handleAuthStatusUpdate(data) {
     }
 }
 
+// Helper function to extract LinkedIn profile ID from URL
+function extractLinkedInProfileId(url) {
+    if (!url) return '';
+    
+    try {
+        // Handle different LinkedIn URL formats
+        // Standard: https://www.linkedin.com/in/profile-id/
+        // Overlay: https://www.linkedin.com/in/profile-id/overlay/contact-info/
+        // Detail: https://www.linkedin.com/in/profile-id/detail/contact-info/
+        
+        const match = url.match(/\/in\/([^\/\?]+)/);
+        if (match && match[1]) {
+            return match[1].toLowerCase(); // Return profile ID in lowercase for consistency
+        }
+        
+        return '';
+    } catch (error) {
+        console.error('Error extracting LinkedIn profile ID:', error);
+        return '';
+    }
+}
+
 function sendProfileDataToSidebar() {
     console.log('Sending profile data to sidebar');
     const iframe = document.getElementById('unnanu-sidebar-iframe');
@@ -660,21 +682,39 @@ function sendProfileDataToSidebar() {
     
     const profileData = extractLinkedInProfile();
     
-    // Check if this is a different profile than the last one extracted
-    const profileHash = profileData.url + (profileData.fullName || '');
-    const lastProfileHash = lastProfileData ? (lastProfileData.url + (lastProfileData.fullName || '')) : '';
+    // Extract profile IDs for comparison instead of full URLs
+    const currentProfileId = lastProfileData ? extractLinkedInProfileId(lastProfileData.url) : '';
+    const newProfileId = extractLinkedInProfileId(profileData.url);
     
-    if (profileHash !== lastProfileHash) {
-        console.log('New profile detected, checking cached contact info');
-        // Only clear cached contact info if it wasn't extracted from overlay
+    // Check if this is a different profile based on profile ID rather than full URL
+    const isDifferentProfile = currentProfileId !== newProfileId || 
+                              (lastProfileData && lastProfileData.fullName !== profileData.fullName);
+    
+    console.log('Profile ID comparison in content script - Current:', currentProfileId, 'New:', newProfileId, 'Is different:', isDifferentProfile);
+    
+    if (isDifferentProfile) {
+        console.log('New profile detected, checking existing contact info');
+        
+        // Check if we have overlay-extracted contact info for a different profile
         chrome.storage.local.get(['profileContactInfo'], function(result) {
-            if (result.profileContactInfo && !result.profileContactInfo.extractedFromOverlay) {
-                console.log('Clearing non-overlay contact info for new profile');
-                chrome.storage.local.remove(['profileContactInfo']);
-            } else if (result.profileContactInfo && result.profileContactInfo.extractedFromOverlay) {
-                console.log('Preserving overlay-extracted contact info for profile change');
+            const storedProfileId = result.profileContactInfo ? extractLinkedInProfileId(result.profileContactInfo.linkedinUrl) : '';
+            
+            const shouldClearContactInfo = !result.profileContactInfo || 
+                                         !result.profileContactInfo.extractedFromOverlay ||
+                                         storedProfileId !== newProfileId;
+            
+            console.log('Contact info check in content script - Stored profile ID:', storedProfileId, 'Should clear:', shouldClearContactInfo);
+            
+            if (shouldClearContactInfo) {
+                console.log('Clearing contact info for new profile or different profile overlay data');
+                chrome.storage.local.remove(['profileContactInfo'], function() {
+                    console.log('Cleared contact info for new profile');
+                });
+            } else {
+                console.log('Preserving overlay-extracted contact info for same profile ID');
             }
         });
+        
         lastProfileData = profileData;
     }
     
