@@ -13,28 +13,32 @@
 }
 
 .sidebar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    position: relative;
     padding: 15px 20px;
     border-bottom: 1px solid #e0e0e0;
     background: #f8f9fa;
-    gap: 15px;
 }
 
-.logo-container {
+.header-content {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 10px;
 }
 
+.logo-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .logo {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
 }
 
 .auth-status-header {
-    flex: 1;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -51,6 +55,9 @@
 }
 
 .close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
     background: none;
     border: none;
     font-size: 24px;
@@ -951,4 +958,321 @@
     .profile-stats {
         justify-content: center;
     }
+}
+
+/* Enhanced CRM Contacts Display Styles */
+.contacts-home-page {
+    animation: fadeIn 0.3s ease-in;
+}
+
+.contacts-header {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.contacts-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.contacts-stats-badge {
+    background: #0073b1;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 40px;
+    text-align: center;
+}
+
+.contacts-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.extract-profile-btn {
+    background: #0073b1;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+.extract-profile-btn:hover {
+    background: #005885;
+    transform: translateY(-1px);
+}
+
+.extract-profile-btn.primary {
+    background: #28a745;
+    padding: 12px 20px;
+    font-size: 16px;
+}
+
+.extract-profile-btn.primary:hover {
+    background: #218838;
+}
+
+.last-updated {
+    text-align: center;
+    color: #666;
+    font-size: 12px;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #dee2e6;
+}
+
+.empty-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+.empty-state h4 {
+    color: #333;
+    font-size: 18px;
+    margin: 0 0 10px 0;
+}
+
+.empty-state p {
+    color: #666;
+    font-size: 14px;
+    margin: 0 0 20px 0;
+    line-height: 1.4;
+}
+
+/* Search Input */
+.contacts-search {
+    margin-bottom: 15px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #0073b1;
+    box-shadow: 0 0 0 2px rgba(0, 115, 177, 0.1);
+}
+
+/* Contact Cards */
+.contacts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.contact-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.contact-card:hover {
+    border-color: #0073b1;
+    box-shadow: 0 2px 8px rgba(0, 115, 177, 0.1);
+    transform: translateY(-1px);
+}
+
+.contact-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.contact-avatar {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.avatar-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #0073b1;
+}
+
+.contact-initials {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0073b1, #005885);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.contact-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.contact-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0 0 4px 0;
+    line-height: 1.2;
+}
+
+.contact-title {
+    font-size: 13px;
+    color: #666;
+    margin: 0 0 4px 0;
+    font-weight: 500;
+}
+
+.contact-location {
+    font-size: 12px;
+    color: #888;
+    margin: 0;
+}
+
+.contact-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.action-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.email-btn {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.email-btn:hover {
+    background: #1976d2;
+    color: white;
+}
+
+.phone-btn {
+    background: #e8f5e8;
+    color: #388e3c;
+}
+
+.phone-btn:hover {
+    background: #388e3c;
+    color: white;
+}
+
+.linkedin-btn {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.linkedin-btn:hover {
+    background: #7b1fa2;
+    color: white;
+}
+
+.contact-card-body {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.contact-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #666;
+}
+
+.detail-icon {
+    font-size: 12px;
+    width: 16px;
+    text-align: center;
+}
+
+.contact-meta {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.meta-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.resume-badge {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.updated-badge {
+    background: #f3e5f5;
+    color: #6a1b9a;
 }

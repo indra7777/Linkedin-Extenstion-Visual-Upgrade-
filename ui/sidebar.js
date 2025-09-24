@@ -7,6 +7,10 @@ var crmAPI = 'https://uat-hire-oth-v5.unnanu.com';
 let currentProfileData = null;
 let currentUserData = null;
 
+// View State Management
+let currentViewState = 'contacts'; // 'contacts' or 'profile'
+let shouldStayInContactsView = false;
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Sidebar DOM loaded');
     initializeEventListeners();
@@ -68,8 +72,9 @@ function checkAuthenticationStatus() {
             updateUserInfo(userData);
             showMainContent(); // This will request profile data
         } else {
-            console.log('User is not authenticated');
-            showLoginForm();
+            console.log('User is not authenticated - showing profile first');
+            currentUserData = null;
+            showMainContentWithoutAuth(); // Show profile without requiring auth first
         }
     });
 }
@@ -101,27 +106,61 @@ function showLoginForm() {
 function showMainContent() {
     document.getElementById('login-container').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';
-    
+
     // Hide usage disclaimer when authenticated
     const usageDisclaimer = document.getElementById('usage-disclaimer');
     if (usageDisclaimer) {
         usageDisclaimer.style.display = 'none';
     }
-    
+
     // Show authentication status in header
     const authStatusHeader = document.getElementById('authStatusHeader');
     if (authStatusHeader) {
         authStatusHeader.style.display = 'flex';
     }
-    
+
     // Notify parent about authentication status
-    window.parent.postMessage({ 
-        action: 'authStatus', 
+    window.parent.postMessage({
+        action: 'authStatus',
         isAuthenticated: true,
-        userData: currentUserData 
+        userData: currentUserData
     }, '*');
-    
-    // Now that user is authenticated, request profile data from content script
+
+    // Set initial view state to contacts
+    currentViewState = 'contacts';
+    shouldStayInContactsView = true;
+
+    // Load contacts list first as home page
+    loadContactsAsHomePage();
+
+    // Don't automatically request profile data - let user choose
+}
+
+function showMainContentWithoutAuth() {
+    document.getElementById('login-container').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+
+    // Hide usage disclaimer when showing content
+    const usageDisclaimer = document.getElementById('usage-disclaimer');
+    if (usageDisclaimer) {
+        usageDisclaimer.style.display = 'none';
+    }
+
+    // Hide authentication status in header for non-authenticated users
+    const authStatusHeader = document.getElementById('authStatusHeader');
+    if (authStatusHeader) {
+        authStatusHeader.style.display = 'none';
+    }
+
+    // Notify parent about authentication status
+    window.parent.postMessage({
+        action: 'authStatus',
+        isAuthenticated: false,
+        userData: null
+    }, '*');
+
+    // Show extracted profile data immediately without requiring auth
+    // The profile data will be requested from content script
     window.parent.postMessage({ action: 'requestProfileData' }, '*');
 }
 
@@ -131,10 +170,10 @@ function updateUserInfo(userData) {
         // Show authentication status with expiry info
         const expiryDate = new Date(userData.expiry);
         const now = new Date();
-        const timeLeft = Math.round((expiryDate - now) / (1000 * 60)); // minutes
-        
+        const timeLeft = Math.round((expiryDate - now) / (1000 * 60 * 60 * 24)); // days
+
         if (timeLeft > 0) {
-            userEmailSpan.textContent = `Logged in (${timeLeft}min left)`;
+            userEmailSpan.textContent = `Logged in (${timeLeft} days left)`;
         } else {
             userEmailSpan.textContent = `Session expired`;
         }
@@ -185,7 +224,7 @@ function handleLogin() {
         if (responseData && responseData.Code === 200) {
             // Login successful
             const currentTime = new Date().getTime();
-            const expiryTime = currentTime + 60 * 60 * 1000; // 60 minutes
+            const expiryTime = currentTime + 28 * 24 * 60 * 60 * 1000; // 28 days
             
             const userData = {
                 token: responseData.Data.Token,
@@ -286,16 +325,23 @@ window.addEventListener('message', function(event) {
 
 function displayProfileData(profileData) {
     console.log('Displaying profile data:', profileData);
-    
+
+    // Check if we should stay in contacts view
+    if (shouldStayInContactsView && currentViewState === 'contacts') {
+        console.log('Staying in contacts view, ignoring profile data');
+        currentProfileData = profileData; // Update data but don't show
+        return;
+    }
+
     // Extract profile IDs for comparison instead of full URLs
     const currentProfileId = currentProfileData ? extractLinkedInProfileId(currentProfileData.url) : '';
     const newProfileId = extractLinkedInProfileId(profileData.url);
-    
+
     // Check if this is a new profile based on profile ID rather than full URL
-    const isNewProfile = !currentProfileData || 
+    const isNewProfile = !currentProfileData ||
                         currentProfileId !== newProfileId ||
                         (currentProfileData.firstName + ' ' + currentProfileData.lastName) !== (profileData.firstName + ' ' + profileData.lastName);
-    
+
     console.log('Profile ID comparison - Current:', currentProfileId, 'New:', newProfileId, 'Is new profile:', isNewProfile);
     
     if (isNewProfile) {
@@ -348,13 +394,23 @@ function displayProfileData(profileData) {
     if (currentUserData && currentUserData.token) {
         // Hide the extract button section for authenticated users
         if (actionSection) actionSection.style.display = 'none';
-        
-        // Auto-extract and display detailed information
-        autoExtractAndDisplay(profileData);
+
+        // Set view state to profile mode since we're showing profile
+        currentViewState = 'profile';
+        shouldStayInContactsView = false;
+
+        // If we're in extraction mode from home page, force detailed view
+        if (window.isExtractingProfile) {
+            window.isExtractingProfile = false; // Reset flag
+            autoExtractAndDisplay(profileData);
+        } else {
+            // Auto-extract and display detailed information
+            autoExtractAndDisplay(profileData);
+        }
     } else {
-        // For non-authenticated users, show basic info with extract button
-        displayBasicProfile(profileData);
-        if (actionSection) actionSection.style.display = 'block';
+        // For non-authenticated users, show profile with "Save Contact" button
+        displayProfileWithSaveOption(profileData);
+        if (actionSection) actionSection.style.display = 'none'; // Hide extract button, show save contact instead
     }
     
     hideStatusMessage();
@@ -388,6 +444,63 @@ function displayBasicProfile(profileData) {
     `;
     
     extractBtn.disabled = false;
+}
+
+function displayProfileWithSaveOption(profileData) {
+    const profileContainer = document.getElementById('profile-container');
+
+    // Display profile data with save contact option
+    const profileImageHtml = profileData.profileImage ?
+        `<img src="${profileData.profileImage}"
+             alt="Profile Picture"
+             class="profile-image"
+             onerror="this.src='../images/icon-2.png'">` :
+        `<div class="profile-image-placeholder">
+             <span class="profile-initials">${(profileData.firstName || '').charAt(0)}${(profileData.lastName || '').charAt(0)}</span>
+         </div>`;
+
+    profileContainer.innerHTML = `
+        <div class="profile-display">
+            <div class="profile-image-container">
+                ${profileImageHtml}
+            </div>
+            <div class="profile-info">
+                <h3 class="profile-name">${profileData.firstName} ${profileData.lastName}</h3>
+                <p class="profile-title">${profileData.headline || 'LinkedIn Profile'}</p>
+                <p class="profile-location">${profileData.location || ''}</p>
+            </div>
+
+            <div class="profile-actions" style="width: 100%; margin-top: 20px;">
+                <button id="saveContactButton" class="save-contact-btn" style="width: 100%; padding: 14px 20px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;">
+                    💾 Save Contact to CRM
+                </button>
+                <p style="text-align: center; font-size: 12px; color: #666; margin-top: 10px;">
+                    Login required to save contacts to your CRM
+                </p>
+            </div>
+        </div>
+    `;
+
+    // Add event listener for save contact button
+    setTimeout(() => {
+        const saveButton = document.getElementById('saveContactButton');
+        if (saveButton) {
+            saveButton.addEventListener('click', function() {
+                // Check authentication before saving
+                getUnnanuData(function(userData) {
+                    if (userData && userData.token) {
+                        // User is authenticated, proceed with saving
+                        currentUserData = userData;
+                        updateUserInfo(userData);
+                        showMainContent(); // Switch to authenticated view
+                    } else {
+                        // User needs to authenticate first
+                        showLoginForm();
+                    }
+                });
+            });
+        }
+    }, 100);
 }
 
 async function autoExtractAndDisplay(profileData) {
@@ -736,6 +849,14 @@ function displayDetailedProfile(profileData) {
                     </div>
                 </div>
                 
+                <!-- Navigation Bar -->
+                <div class="profile-navigation">
+                    <button class="nav-btn home-btn" id="homeBtn" onclick="goToHomePage()">
+                        🏠 Home
+                    </button>
+                    <span class="nav-title">Profile Extraction</span>
+                </div>
+
                 <!-- Editable Contact Information -->
                 <div class="profile-section editable-section">
                     <h4 class="section-title">📞 Contact Information (Editable)</h4>
@@ -1179,6 +1300,8 @@ function handleFileSelection(file) {
     }
     
     // Store the selected file
+    console.log('Selected file:', file);
+
     selectedResumeFile = file;
     console.log('Selected file:', selectedResumeFile);
     //print binary data of file
@@ -1266,114 +1389,89 @@ function clearFileSelection() {
 // Function to upload resume to server (Step 2: Upload to API)
 async function uploadResumeToServer() {
     console.log('Uploading resume to server');
-    
+
+    // Check if file is selected
     if (!selectedResumeFile) {
         showResumeUploadStatus('No file selected to upload.', 'error');
         return;
     }
-    
+
+    // Check if user is logged in
     if (!currentUserData || !currentUserData.token) {
         showResumeUploadStatus('Please login to upload files.', 'error');
         return;
     }
-    
+
     const uploadToServerBtn = document.getElementById('uploadToServerBtn');
     const uploadStatusText = document.getElementById('uploadStatusText');
-    
+    let result = null; // ✅ Declare here so it's accessible everywhere
+
     try {
         // Show uploading status
         if (uploadToServerBtn) {
             uploadToServerBtn.disabled = true;
             uploadToServerBtn.textContent = '⏳ Uploading...';
         }
-        
+
         if (uploadStatusText) {
             uploadStatusText.textContent = 'Uploading to server...';
             uploadStatusText.style.color = '#ffc107';
         }
-        
+
         showResumeUploadStatus('Uploading resume to server...', 'info');
-        
-        // Convert File to actual binary data
-        console.log('Converting file to binary data...');
-        
-        try {
-            const formData = new FormData();
 
-            // Append the file directly. The browser will handle the rest.
-            formData.append('uploaded_file', selectedResumeFile);
+        // Prepare FormData
+        const formData = new FormData();
+        formData.append('uploaded_file', selectedResumeFile);
+        formData.append('file_type', '1');
+        formData.append('co_guid', ' ');
 
-            // Determine file type based on MIME type
-            let fileType = '2'; // Default to '2' for other document types
+        console.log('FormData prepared:', selectedResumeFile);
 
-            formData.append('file_type', fileType);
-            formData.append('co_guid', ''); // Empty string instead of space
+        // Upload resume to API
+        result = await uploadResumeToAPI(formData);
+        console.log('API Upload Result:', result);
 
-            console.log('Final upload payload:', {
-                fileName: selectedResumeFile.name,
-                mimeType: selectedResumeFile.type,
-                fileType: fileType,
-                originalFileSize: selectedResumeFile.size,
-            });
-
-            // Debug: Log FormData contents
-            console.log('FormData contents:');
-            for (let [key, value] of formData.entries()) {
-                if (value instanceof File) {
-                    console.log(`${key}:`, {
-                        type: 'File',
-                        size: value.size,
-                        mimeType: value.type,
-                        name: value.name
-                    });
-                } else {
-                    console.log(`${key}:`, value);
-                }
-            }
-
-            // Upload to API with actual binary data
-            const result = await uploadResumeToAPI(formData);
-
-        } catch (fileConversionError) {
-            console.error('Error preparing file for upload:', fileConversionError);
-            throw new Error('Failed to process file for upload: ' + fileConversionError.message);
+        // ✅ Check if upload was successful
+        if (result && result.Data) {
+            // Extract just the attachment URL string, not the entire object
+            uploadedResumeUrl = result.Data.attachment_url || result.Data;
+            console.log('uploadedResumeUrl:', uploadedResumeUrl);
+        } else {
+            throw new Error('Invalid response from server');
         }
-        
-        // Store the uploaded file URL
-        if (result && result.url) {
-            uploadedResumeUrl = result.url;
-        }
-        
-        // Update UI for successful upload
+
+        // Update UI for success
         if (uploadToServerBtn) {
             uploadToServerBtn.textContent = '✅ Uploaded';
             uploadToServerBtn.style.backgroundColor = '#28a745';
             uploadToServerBtn.style.color = 'white';
         }
-        
+
         if (uploadStatusText) {
             uploadStatusText.textContent = 'Successfully uploaded to server';
             uploadStatusText.style.color = '#28a745';
         }
-        
+
         showResumeUploadStatus('Resume uploaded successfully!', 'success');
-        
+
     } catch (error) {
         console.error('Resume upload failed:', error);
-        
-        // Reset UI on error
+
+        // Reset button UI on error
         if (uploadToServerBtn) {
             uploadToServerBtn.disabled = false;
             uploadToServerBtn.textContent = '☁️ Upload to Server';
             uploadToServerBtn.style.backgroundColor = '';
             uploadToServerBtn.style.color = '';
         }
-        
+
+        // Show error status
         if (uploadStatusText) {
             uploadStatusText.textContent = 'Upload failed';
             uploadStatusText.style.color = '#dc3545';
         }
-        
+
         showResumeUploadStatus('Failed to upload resume. Please try again.', 'error');
     }
 }
@@ -1410,6 +1508,7 @@ function generateGUID() {
     });
 }
 
+
 // Function to upload resume data to API
 async function uploadResumeToAPI(formData) {
     console.log('Uploading resume to API with FormData');
@@ -1419,7 +1518,7 @@ async function uploadResumeToAPI(formData) {
     }
     
     const apiEndpoint = 'https://uat-hire-oth-v5.unnanu.com/api/v1/account/contact/upload';
-    
+    // const apiEndpoint = 'http://localhost:4358/api/v1/account/contact/upload';
     console.log('API Request Details:', {
         endpoint: apiEndpoint,
         method: 'POST',
@@ -1428,6 +1527,20 @@ async function uploadResumeToAPI(formData) {
     });
     
     try {
+        // Log FormData contents for debugging
+     
+        for (let [key, value] of formData.entries()) {
+            if (value instanceof File) {
+                console.log(`${key}:`, {
+                    name: value.name,
+                    size: value.size,
+                    type: value.type
+                });
+            } else {
+                console.log(`${key}:`, value);
+            }
+        }
+        
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: {
@@ -1848,8 +1961,10 @@ async function sendContactInfoToAPI(contactInfo) {
         location: currentProfileData.location || '',
         relocation: false, // Default to false
         unnanuId: currentUserData.id || 0,
+        linkedin: contactInfo.linkedinUrl || currentProfileData.url || '', // Added missing linkedin field
         imageUrl: currentProfileData.profileImage || '',
-        resumeUrl: uploadedResumeUrl || '', // Include uploaded resume URL
+        resumeUrl: uploadedResumeUrl || '', // Fixed: resumeUrl instead of resume
+        resume: null, // Don't send resume data object, only use resumeUrl
         salary: '', // Default empty
         source: 'linkedin-plugin', // Set source as linkedin-plugin
         jobtype: '', // Default empty
@@ -1878,7 +1993,20 @@ async function sendContactInfoToAPI(contactInfo) {
 
         const result = await response.json();
         console.log('API response:', result);
-        showStatusMessage('Contact information sent to API successfully!', 'success');
+
+        // Check if contact was successfully created
+        if (result && result.Code === 200) {
+            // Show enhanced success message with API response
+            showSuccessContactCreation(result);
+
+            // Fetch updated contact list to show the new contact
+            await fetchAndDisplayContactList();
+
+            // Update header status
+            updateHeaderStatus('✅ Contact Successfully Added to CRM!');
+        } else {
+            showStatusMessage(`Failed to create contact: ${result.Data || 'Unknown error'}`, 'error');
+        }
     } catch (error) {
         console.error('API request failed:', error);
         showStatusMessage('Failed to send contact information to API.', 'error');
@@ -1936,6 +2064,218 @@ function showStatusMessage(message, type) {
 function hideStatusMessage() {
     const statusElement = document.getElementById('statusMessage');
     statusElement.style.display = 'none';
+}
+
+// Function to show enhanced success message for contact creation
+function showSuccessContactCreation(result) {
+    const message = `✅ ${result.Data} Contact has been successfully added to your CRM!`;
+    showStatusMessage(message, 'success');
+
+    // Also log the success for debugging
+    console.log('Contact successfully created:', result);
+}
+
+// Function to load contacts as home page when user logs in
+async function loadContactsAsHomePage() {
+    if (!currentUserData || !currentUserData.token) {
+        console.log('Cannot load contacts - user not authenticated');
+        return;
+    }
+
+    const profileContainer = document.getElementById('profile-container');
+    if (!profileContainer) return;
+
+    // Show loading state
+    profileContainer.innerHTML = `
+        <div class="loading-message">
+            <div class="loader"></div>
+            <p>Loading your contacts...</p>
+        </div>
+    `;
+
+    try {
+        await fetchAndDisplayContactList();
+    } catch (error) {
+        console.error('Error loading contacts home page:', error);
+        profileContainer.innerHTML = `
+            <div class="error-message">
+                <p>Failed to load contacts. Please try again.</p>
+                <button onclick="loadContactsAsHomePage()" class="retry-btn">Retry</button>
+            </div>
+        `;
+    }
+}
+
+// Function to fetch and display contact list after successful creation
+async function fetchAndDisplayContactList() {
+    if (!currentUserData || !currentUserData.token) {
+        console.log('Cannot fetch contacts - user not authenticated');
+        return;
+    }
+
+    try {
+        console.log('Fetching updated contact list...');
+
+        const contactsEndpoint = `${crmAPI}/api/v1/account/contacts?page=0`;
+        const response = await fetch(contactsEndpoint, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${currentUserData.token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch contacts: ${response.status}`);
+        }
+
+        const contactsResult = await response.json();
+        console.log('Fetched contacts:', contactsResult);
+
+        if (contactsResult && contactsResult.Code === 200 && contactsResult.Data) {
+            displayContactsList(contactsResult.Data);
+        } else {
+            console.log('No contacts found or invalid response');
+        }
+    } catch (error) {
+        console.error('Error fetching contact list:', error);
+    }
+}
+
+// Function to display contacts list in the UI as a home page
+function displayContactsList(contacts) {
+    console.log('Displaying contacts list:', contacts);
+
+    // Get the profile container
+    const profileContainer = document.getElementById('profile-container');
+    if (!profileContainer) return;
+
+    // Remove any existing contacts section to avoid duplicates
+    const existingContactsSection = profileContainer.querySelector('.contacts-section');
+    if (existingContactsSection) {
+        existingContactsSection.remove();
+    }
+
+    // Create the enhanced contacts home page layout
+    const contactsSection = document.createElement('div');
+    contactsSection.className = 'contacts-section';
+    contactsSection.innerHTML = `
+        <div class="contacts-home-page">
+            <div class="contacts-header">
+                <div class="header-top">
+                    <h3 class="contacts-title">👥 Your CRM Contacts</h3>
+                    <div class="contacts-stats-badge">
+                        <span class="total-contacts">${contacts.length}</span>
+                    </div>
+                </div>
+                <div class="contacts-actions">
+                    <button class="extract-profile-btn" id="extractCurrentProfileBtn">
+                        <span class="btn-icon">🔍</span>
+                        <span class="btn-text">Extract Current Profile</span>
+                    </button>
+                    <div class="last-updated">
+                        <span>📅 Updated: ${new Date().toLocaleDateString()}</span>
+                    </div>
+                </div>
+            </div>
+
+            ${contacts.length === 0 ? `
+                <div class="empty-state">
+                    <div class="empty-icon">👤</div>
+                    <h4>No contacts yet</h4>
+                    <p>Start building your CRM by extracting LinkedIn profiles!</p>
+                    <button class="extract-profile-btn primary" onclick="extractCurrentProfile()">
+                        <span class="btn-icon">🚀</span>
+                        <span class="btn-text">Extract Your First Contact</span>
+                    </button>
+                </div>
+            ` : `
+                <div class="contacts-search">
+                    <input type="text" id="contactsSearch" placeholder="🔍 Search contacts..." class="search-input">
+                </div>
+                <div class="contacts-list" id="contactsList">
+                    ${contacts.map(contact => {
+                        const fullName = `${contact.fName || ''} ${contact.lName || ''}`.trim();
+                        const initials = `${(contact.fName || '').charAt(0)}${(contact.lName || '').charAt(0)}`.toUpperCase();
+                        const lastUpdated = contact.updated ? new Date(contact.updated).toLocaleDateString() : 'Unknown';
+                        const hasResume = contact.resume && contact.resume !== '';
+                        const hasPhone = contact.phone && contact.phone !== '';
+                        const company = contact.title || 'No company';
+                        const location = contact.location || '';
+
+                        return `
+                            <div class="contact-card" data-contact-id="${contact.CId}" data-name="${fullName.toLowerCase()}" data-email="${(contact.email || '').toLowerCase()}">
+                                <div class="contact-card-header">
+                                    <div class="contact-avatar">
+                                        ${contact.imageUrl ?
+                                            `<img src="${contact.imageUrl}" alt="${fullName}" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                             <div class="contact-initials" style="display: none;">${initials}</div>` :
+                                            `<div class="contact-initials">${initials}</div>`
+                                        }
+                                    </div>
+                                    <div class="contact-info">
+                                        <h4 class="contact-name">${fullName || 'Unknown Contact'}</h4>
+                                        <p class="contact-title">${company}</p>
+                                        ${location ? `<p class="contact-location">📍 ${location}</p>` : ''}
+                                    </div>
+                                    <div class="contact-actions">
+                                        ${contact.email ? `<button class="action-btn email-btn" title="Email ${contact.email}" onclick="window.open('mailto:${contact.email}')">📧</button>` : ''}
+                                        ${hasPhone ? `<button class="action-btn phone-btn" title="Call ${contact.phone}" onclick="window.open('tel:${contact.phone}')">📞</button>` : ''}
+                                        ${contact.linkedin ? `<button class="action-btn linkedin-btn" title="View LinkedIn Profile" onclick="window.open('${contact.linkedin}', '_blank')">💼</button>` : ''}
+                                    </div>
+                                </div>
+                                <div class="contact-card-body">
+                                    ${contact.email ? `<div class="contact-detail"><span class="detail-icon">📧</span><span>${contact.email}</span></div>` : ''}
+                                    ${hasPhone ? `<div class="contact-detail"><span class="detail-icon">📞</span><span>${contact.phone}</span></div>` : ''}
+                                    <div class="contact-meta">
+                                        <div class="meta-badges">
+                                            ${hasResume ? '<span class="badge resume-badge">📄 Resume</span>' : ''}
+                                            <span class="badge updated-badge">📅 ${lastUpdated}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `}
+        </div>
+    `;
+
+    // Replace the entire profile container content with contacts list
+    profileContainer.innerHTML = contactsSection.innerHTML;
+
+    // Add event listeners
+    setTimeout(() => {
+        const extractBtn = document.getElementById('extractCurrentProfileBtn');
+        if (extractBtn) {
+            extractBtn.addEventListener('click', function() {
+                console.log('Extract Current Profile button clicked!');
+                extractCurrentProfile();
+            });
+        }
+
+        // Add search functionality
+        const searchInput = document.getElementById('contactsSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                filterContacts(e.target.value.toLowerCase());
+            });
+        }
+    }, 100);
+}
+
+// Function to filter contacts based on search input
+function filterContacts(searchTerm) {
+    const contactCards = document.querySelectorAll('.contact-card');
+
+    contactCards.forEach(card => {
+        const name = card.getAttribute('data-name') || '';
+        const email = card.getAttribute('data-email') || '';
+        const isVisible = name.includes(searchTerm) || email.includes(searchTerm);
+
+        card.style.display = isVisible ? 'block' : 'none';
+    });
 }
 
 // Authentication functions
@@ -2014,6 +2354,67 @@ function handleOverlayContactInfo(contactInfo) {
         chrome.storage.local.set({ 'profileContactInfo': contactInfoToSave }, () => {
             console.log('LinkedIn overlay contact info saved to storage');
         });
+    }
+}
+
+// Navigation Functions
+
+// Function to go back to home page (contacts list)
+window.goToHomePage = function() {
+    console.log('Navigating to home page...');
+
+    // Set view state to contacts
+    currentViewState = 'contacts';
+    shouldStayInContactsView = true;
+    window.isExtractingProfile = false;
+
+    if (currentUserData && currentUserData.token) {
+        loadContactsAsHomePage();
+        updateHeaderStatus('📋 Contacts Home');
+    } else {
+        console.log('User not authenticated');
+        showErrorState('Please login to view contacts');
+    }
+}
+
+// Function to extract current profile from home page
+window.extractCurrentProfile = function() {
+    console.log('extractCurrentProfile function called');
+    console.log('Current user data:', currentUserData);
+    console.log('User authenticated:', !!(currentUserData && currentUserData.token));
+
+    if (currentUserData && currentUserData.token) {
+        console.log('User is authenticated, proceeding with extraction...');
+
+        // Set view state to profile mode
+        currentViewState = 'profile';
+        shouldStayInContactsView = false;
+        window.isExtractingProfile = true;
+
+        console.log('View state set to profile, shouldStayInContactsView:', shouldStayInContactsView);
+
+        // Show loading state while profile loads
+        const profileContainer = document.getElementById('profile-container');
+        if (profileContainer) {
+            console.log('Updating profile container with loading state');
+            profileContainer.innerHTML = `
+                <div class="loading-message">
+                    <div class="loader"></div>
+                    <p>Loading current LinkedIn profile...</p>
+                </div>
+            `;
+        } else {
+            console.error('Profile container not found!');
+        }
+
+        updateHeaderStatus('🔍 Loading Profile...');
+
+        // Request profile data from the current LinkedIn page
+        console.log('Sending requestProfileData message to parent');
+        window.parent.postMessage({ action: 'requestProfileData' }, '*');
+    } else {
+        console.log('User not authenticated, showing error');
+        showErrorState('Please login to extract profiles');
     }
 }
 
